@@ -1,0 +1,10 @@
+namespace Doria\Tui;
+
+/// A failure of `Doria\Tui` itself, as opposed to one of the terminal it
+/// drives, which is a `Doria\Std\Term\TerminalError`.
+class TuiError implements Error
+{
+    function __construct(string $message, TuiErrorReason $reason, ?TerminalStream $stream)
+    {
+    }
+}

@@ -1,0 +1,8 @@
+namespace Doria\Tui;
+
+/// The standard stream a `TuiError` concerns.
+enum TerminalStream
+{
+    case Input;
+    case Output;
+}

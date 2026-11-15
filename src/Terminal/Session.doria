@@ -1,0 +1,165 @@
+namespace Doria\Tui\Terminal;
+
+use Doria\Std\Io\{StandardStreams, Wait};
+use Doria\Std\Term\{AlternateScreen, Console, RawMode, Size, TerminalError, TerminalWaitResult};
+use Doria\Tui\{TerminalStream, TuiError, TuiErrorReason};
+use Doria\Tui\Surface\{Change, Frame, FrameDiff};
+
+/// The terminal a program draws on, from `start` or `startInline` until the
+/// session ends. It owns raw mode for its whole life and, when started with
+/// `start`, the alternate screen. Ending it, by `end` or by its destructor,
+/// shows the cursor again and gives back what it took.
+///
+/// `present` draws a frame by writing only the cells that differ from the
+/// frame presented before it.
+class Session
+{
+    internal writable ?Frame $presented = null;
+    internal writable bool $finished = false;
+    internal writable int $width;
+    internal writable int $height;
+
+    internal function __construct(
+        internal take RawMode $rawMode,
+        internal take ?AlternateScreen $screen,
+        int $columns,
+        int $rows,
+        internal int $top,
+    ) {
+        $this->width = $columns;
+        $this->height = $rows;
+    }
+
+    /// Starts a session on the alternate screen, so the shell's text and
+    /// scrollback come back when it ends.
+    static function start(): Session throws TuiError, TerminalError
+    {
+        self::requireTerminal();
+        let $rawMode = Console::enterRawMode();
+        let $screen = Console::enterAlternateScreen();
+        Size $size = Console::getSize();
+        Console::hideCursor();
+        Console::clear();
+        return new Session($rawMode, $screen, $size->columns, $size->rows, 0);
+    }
+
+    /// Starts a session drawn inline, in `$rows` rows below the cursor that
+    /// stay on screen when it ends. Rows are added at the bottom of the
+    /// terminal when there is not room for them.
+    static function startInline(int $rows): Session throws TuiError, TerminalError
+    {
+        if ($rows < 1) {
+            panic("An inline session needs at least one row");
+        }
+        self::requireTerminal();
+        let $rawMode = Console::enterRawMode();
+        Size $size = Console::getSize();
+        writable int $height = $rows;
+        if ($height > $size->rows) {
+            $height = $size->rows;
+        }
+        for (writable int $line = 1; $line < $height; $line++) {
+            Console::write("\n");
+        }
+        Console::flush();
+        int $cursor = $rawMode->getCursorPosition()->row;
+        Console::hideCursor();
+        return new Session($rawMode, null, $size->columns, $height, $cursor - ($height - 1));
+    }
+
+    /// The width of the drawing area in cells.
+    function getColumns(): int
+    {
+        return $this->width;
+    }
+
+    /// The height of the drawing area in rows.
+    function getRows(): int
+    {
+        return $this->height;
+    }
+
+    /// Draws `$frame`, writing only the runs of cells that changed since
+    /// the last frame presented, and sends them to the terminal at once.
+    writable function present(take Frame $frame): void throws TerminalError
+    {
+        if ($this->finished) {
+            panic("A session cannot draw after it has ended");
+        }
+        List<Change> $changes = FrameDiff::between($this->presented, $frame);
+        foreach ($changes as Change $change) {
+            Console::writeAt($change->column, $this->top + $change->row, $change->text, $change->style);
+        }
+        Console::flush();
+        $this->presented = $frame;
+    }
+
+    /// Records a new terminal size. The next frame is drawn whole.
+    writable function resize(Size $size): void throws TerminalError
+    {
+        $this->width = $size->columns;
+        if ($this->screen != null) {
+            $this->height = $size->rows;
+            Console::clear();
+        }
+        $this->presented = null;
+    }
+
+    /// Waits for the next key or resize, as `RawMode::getNextEvent` does.
+    function getNextEvent(Wait $wait): TerminalWaitResult throws TerminalError
+    {
+        return $this->rawMode->getNextEvent($wait);
+    }
+
+    /// Ends the session and reports a failure to restore the terminal. An
+    /// inline session leaves its rows on screen and the cursor below them.
+    /// The session draws nothing after this; raw mode and the alternate
+    /// screen are given back when the session is destroyed.
+    writable function end(): void throws TerminalError
+    {
+        $this->finish();
+    }
+
+    function __destruct(): void
+    {
+        // A destructor cannot report a failure; `end` is the way to see one.
+        // The raw mode and alternate screen guards restore themselves after
+        // this body.
+        try {
+            $this->finish();
+        } catch (TerminalError) {
+        }
+    }
+
+    internal writable function finish(): void throws TerminalError
+    {
+        if ($this->finished) {
+            return;
+        }
+        $this->finished = true;
+        if ($this->screen == null) {
+            Console::moveTo(0, $this->top + $this->height - 1);
+            Console::write("\n");
+        }
+        Console::showCursor();
+        Console::flush();
+    }
+
+    internal static function requireTerminal(): void throws TuiError
+    {
+        if (!StandardStreams::input->isInteractive) {
+            throw new TuiError(
+                "Standard input is not a terminal",
+                TuiErrorReason::NotATerminal,
+                TerminalStream::Input,
+            );
+        }
+        if (!StandardStreams::output->isInteractive) {
+            throw new TuiError(
+                "Standard output is not a terminal",
+                TuiErrorReason::NotATerminal,
+                TerminalStream::Output,
+            );
+        }
+    }
+}

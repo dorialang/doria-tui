@@ -1,0 +1,9 @@
+namespace Doria\Tui;
+
+/// Why `Doria\Tui` could not do what was asked.
+enum TuiErrorReason
+{
+    /// A standard stream the library needs is not a terminal. `$stream` on
+    /// the error names it.
+    case NotATerminal;
+}
