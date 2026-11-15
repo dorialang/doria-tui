@@ -1,0 +1,16 @@
+manifest-version = 2
+
+[package]
+name = "dorialang/tui"
+version = "0.1.0"
+edition = "2026"
+publishable = false
+
+[targets.library]
+name = "tui"
+
+[autoload.namespaces]
+"Doria\\Tui\\" = "src/"
+
+[autoload-dev.namespaces]
+"Doria\\Tui\\Tests\\" = "tests/"

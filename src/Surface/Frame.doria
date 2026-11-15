@@ -1,0 +1,134 @@
+namespace Doria\Tui\Surface;
+
+use Doria\Std\Term\Style;
+
+/// A grid of terminal cells, column first and zero-based, as
+/// `Doria\Std\Term` numbers them.
+///
+/// Each cell holds one grapheme cluster and its style. A cluster two cells
+/// wide occupies its cell and the cell after it; the second cell holds the
+/// empty string and is a continuation of the first. A frame never holds a
+/// half of a wide cluster: writing over either half clears the other.
+class Frame
+{
+    /// The text of a cell nothing has been written to.
+    const string BLANK = " ";
+
+    internal writable List<string> $glyphs;
+    internal writable List<Style> $styles;
+
+    function __construct(int $columns, int $rows)
+    {
+        if ($columns < 0 or $rows < 0) {
+            panic("A frame cannot have a negative size");
+        }
+        $this->glyphs = [self::BLANK; $columns * $rows];
+        $this->styles = [Style::plain; $columns * $rows];
+    }
+
+    /// Puts every cell back to a blank with the plain style.
+    writable function clear(): void
+    {
+        for (writable int $index = 0; $index < $this->glyphs->count; $index++) {
+            $this->glyphs[$index] = self::BLANK;
+            $this->styles[$index] = Style::plain;
+        }
+    }
+
+    /// Writes `$text` from `$column` on `$row`, one grapheme cluster per cell
+    /// or two for a wide one, and returns the number of cells written.
+    ///
+    /// Writing stops at `$end`, an exclusive column bound that defaults to the
+    /// frame's width. A wide cluster with only one cell left before the bound
+    /// is not split: that cell is blanked and writing stops. A cluster that
+    /// takes no cells, such as a control character, is skipped. Nothing is
+    /// written outside the frame.
+    writable function write(
+        int $column,
+        int $row,
+        string $text,
+        Style $style,
+        ?int $end = null,
+    ): int {
+        if ($row < 0 or $row >= $this->rows or $column < 0) {
+            return 0;
+        }
+        int $bound = $end ?? $this->columns;
+        writable int $limit = $this->columns;
+        if ($bound < $limit) {
+            $limit = $bound;
+        }
+        writable int $at = $column;
+        foreach ($text->graphemes as string $grapheme) {
+            int $width = $grapheme->displayWidth;
+            if ($width == 0) {
+                continue;
+            }
+            if ($at + $width > $limit) {
+                if ($at < $limit) {
+                    $this->place($at, $row, self::BLANK, $style, 1);
+                    $at++;
+                }
+                break;
+            }
+            $this->place($at, $row, $grapheme, $style, $width);
+            $at += $width;
+        }
+        return $at - $column;
+    }
+
+    /// The text of the cell at `$column` and `$row`: one grapheme cluster, or
+    /// the empty string for the second cell of a wide cluster.
+    function glyphAt(int $column, int $row): string
+    {
+        return $this->glyphs[$this->index($column, $row)];
+    }
+
+    function styleAt(int $column, int $row): Style
+    {
+        return $this->styles[$this->index($column, $row)];
+    }
+
+    /// The text of one row as it is drawn, without styles.
+    function line(int $row): string
+    {
+        writable string $text = "";
+        for (writable int $column = 0; $column < $this->columns; $column++) {
+            $text = $text . $this->glyphAt($column, $row);
+        }
+        return $text;
+    }
+
+    internal function index(int $column, int $row): int
+    {
+        if ($column < 0 or $column >= $this->columns or $row < 0 or $row >= $this->rows) {
+            panic("A cell position must be inside the frame");
+        }
+        return $row * $this->columns + $column;
+    }
+
+    /// Writes one cluster of `$width` cells at a position known to fit, and
+    /// clears the other half of any wide cluster it overwrites.
+    internal writable function place(
+        int $column,
+        int $row,
+        string $glyph,
+        Style $style,
+        int $width,
+    ): void {
+        int $first = $this->index($column, $row);
+        int $last = $first + $width - 1;
+        if ($this->glyphs[$first] == "" and $column > 0) {
+            $this->glyphs[$first - 1] = self::BLANK;
+        }
+        if ($column + $width < $this->columns and $this->glyphs[$last + 1] == "") {
+            $this->glyphs[$last + 1] = self::BLANK;
+        }
+        $this->glyphs[$first] = $glyph;
+        $this->styles[$first] = $style;
+        if ($width == 2) {
+            $this->glyphs[$last] = "";
+            $this->styles[$last] = $style;
+        }
+    }
+}

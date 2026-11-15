@@ -1,0 +1,96 @@
+namespace Doria\Tui\Tests\Surface;
+
+use Doria\Std\Term\{Color, Style};
+use Doria\Std\Test\{describe, it, expect};
+use Doria\Tui\Surface\Frame;
+
+describe("Frame", function (): void {
+    it("starts blank", function (): void {
+        let $frame = new Frame(4, 2);
+        expect($frame->line(0))->toEqual("    ");
+        expect($frame->line(1))->toEqual("    ");
+        expect($frame->styleAt(3, 1) == Style::plain)->toBeTrue();
+    });
+
+    it("writes one cluster per cell and returns the cells used", function (): void {
+        writable Frame $frame = new Frame(8, 1);
+        let $bold = Style::plain->withBold();
+        expect($frame->write(1, 0, "abc", $bold))->toEqual(3);
+        expect($frame->line(0))->toEqual(" abc    ");
+        expect($frame->styleAt(2, 0) == $bold)->toBeTrue();
+        expect($frame->styleAt(4, 0) == Style::plain)->toBeTrue();
+    });
+
+    it("gives a wide cluster two cells", function (): void {
+        writable Frame $frame = new Frame(6, 1);
+        expect($frame->write(0, 0, "日本", Style::plain))->toEqual(4);
+        expect($frame->glyphAt(0, 0))->toEqual("日");
+        expect($frame->glyphAt(1, 0))->toEqual("");
+        expect($frame->glyphAt(2, 0))->toEqual("本");
+        expect($frame->line(0))->toEqual("日本  ");
+    });
+
+    it("keeps combining marks and emoji sequences in one cluster", function (): void {
+        writable Frame $frame = new Frame(5, 1);
+        expect($frame->write(0, 0, "é👍🏾x", Style::plain))->toEqual(4);
+        expect($frame->glyphAt(0, 0))->toEqual("é");
+        expect($frame->glyphAt(1, 0))->toEqual("👍🏾");
+        expect($frame->glyphAt(3, 0))->toEqual("x");
+    });
+
+    it("skips clusters that take no cells", function (): void {
+        writable Frame $frame = new Frame(4, 1);
+        expect($frame->write(0, 0, "a\tb\n", Style::plain))->toEqual(2);
+        expect($frame->line(0))->toEqual("ab  ");
+    });
+
+    it("stops at the frame's edge", function (): void {
+        writable Frame $frame = new Frame(3, 1);
+        expect($frame->write(1, 0, "abcdef", Style::plain))->toEqual(2);
+        expect($frame->line(0))->toEqual(" ab");
+    });
+
+    it("stops at an end column", function (): void {
+        writable Frame $frame = new Frame(6, 1);
+        expect($frame->write(0, 0, "abcdef", Style::plain, end: 4))->toEqual(4);
+        expect($frame->line(0))->toEqual("abcd  ");
+    });
+
+    it("blanks the last cell rather than split a wide cluster", function (): void {
+        writable Frame $frame = new Frame(3, 1);
+        let $red = Style::plain->withForeground(Color::Red);
+        expect($frame->write(0, 0, "a日", $red))->toEqual(3);
+        expect($frame->write(1, 0, "本日", $red))->toEqual(2);
+        expect($frame->line(0))->toEqual("a本");
+        writable Frame $narrow = new Frame(2, 1);
+        expect($narrow->write(1, 0, "日", $red))->toEqual(1);
+        expect($narrow->line(0))->toEqual("  ");
+        expect($narrow->styleAt(1, 0) == $red)->toBeTrue();
+    });
+
+    it("clears the other half of a wide cluster it overwrites", function (): void {
+        writable Frame $frame = new Frame(4, 1);
+        $frame->write(0, 0, "日本", Style::plain);
+        $frame->write(1, 0, "x", Style::plain);
+        expect($frame->line(0))->toEqual(" x本");
+        $frame->write(2, 0, "y", Style::plain);
+        expect($frame->line(0))->toEqual(" xy ");
+    });
+
+    it("writes nothing outside the frame", function (): void {
+        writable Frame $frame = new Frame(2, 1);
+        expect($frame->write(0, 1, "a", Style::plain))->toEqual(0);
+        expect($frame->write(0, -1, "a", Style::plain))->toEqual(0);
+        expect($frame->write(-1, 0, "a", Style::plain))->toEqual(0);
+        expect($frame->write(2, 0, "a", Style::plain))->toEqual(0);
+        expect($frame->line(0))->toEqual("  ");
+    });
+
+    it("clears every cell", function (): void {
+        writable Frame $frame = new Frame(3, 1);
+        $frame->write(0, 0, "abc", Style::plain->withBold());
+        $frame->clear();
+        expect($frame->line(0))->toEqual("   ");
+        expect($frame->styleAt(0, 0) == Style::plain)->toBeTrue();
+    });
+});
