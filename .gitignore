@@ -1,0 +1,17 @@
+# Baton build output
+/build/
+
+# Local editor and environment state
+.idea/
+.vscode/
+*.iml
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*~
