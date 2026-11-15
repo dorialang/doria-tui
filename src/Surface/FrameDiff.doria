@@ -1,0 +1,60 @@
+namespace Doria\Tui\Surface;
+
+use Doria\Std\Term\Style;
+
+/// The cells that differ between two frames, as runs a renderer can write.
+class FrameDiff
+{
+    /// The runs that turn `$previous` into `$next`, row by row from the top
+    /// and left to right. With no previous frame, or one of another size,
+    /// every cell of `$next` is a change. A run never starts on the second
+    /// cell of a wide cluster: it starts one cell earlier, on the cluster.
+    static function between(?Frame $previous, Frame $next): List<Change>
+    {
+        writable List<Change> $changes = [];
+        bool $whole = $previous == null
+            or $previous->columns != $next->columns
+            or $previous->rows != $next->rows;
+        for (writable int $row = 0; $row < $next->rows; $row++) {
+            writable int $column = 0;
+            while ($column < $next->columns) {
+                if (!$whole and !self::differs($previous, $next, $column, $row)) {
+                    $column++;
+                    continue;
+                }
+                writable int $start = $column;
+                if ($start > 0 and $next->glyphAt($start, $row) == "") {
+                    $start--;
+                }
+                Style $style = $next->styleAt($start, $row);
+                writable string $text = "";
+                writable int $at = $start;
+                while (
+                    $at < $next->columns
+                    and $next->styleAt($at, $row) == $style
+                    and ($whole or self::differs($previous, $next, $at, $row)
+                        or $next->glyphAt($at, $row) == "")
+                ) {
+                    $text = $text . $next->glyphAt($at, $row);
+                    $at++;
+                }
+                if ($at == $start) {
+                    $text = $next->glyphAt($start, $row);
+                    $at = $start + 1;
+                }
+                $changes->add(new Change($start, $row, $text, $style));
+                $column = $at;
+            }
+        }
+        return $changes;
+    }
+
+    internal static function differs(?Frame $previous, Frame $next, int $column, int $row): bool
+    {
+        if ($previous == null) {
+            return true;
+        }
+        return $previous->glyphAt($column, $row) != $next->glyphAt($column, $row)
+            or $previous->styleAt($column, $row) != $next->styleAt($column, $row);
+    }
+}

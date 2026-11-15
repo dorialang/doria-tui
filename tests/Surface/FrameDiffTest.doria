@@ -1,0 +1,70 @@
+namespace Doria\Tui\Tests\Surface;
+
+use Doria\Std\Term\{Color, Style};
+use Doria\Std\Test\{describe, it, expect};
+use Doria\Tui\Surface\{Change, Frame, FrameDiff};
+
+function describeChanges(List<Change> $changes): string
+{
+    writable string $text = "";
+    foreach ($changes as Change $change) {
+        $text = $text . "{$change->column},{$change->row}:[{$change->text}]";
+        if ($change->style != Style::plain) {
+            $text = $text . "*";
+        }
+        $text = $text . " ";
+    }
+    return $text;
+}
+
+describe("FrameDiff", function (): void {
+    it("writes every cell of a first frame, row by row", function (): void {
+        writable Frame $next = new Frame(3, 2);
+        $next->write(0, 0, "ab", Style::plain);
+        expect(describeChanges(FrameDiff::between(null, $next)))
+            ->toEqual("0,0:[ab ] 0,1:[   ] ");
+    });
+
+    it("finds nothing between equal frames", function (): void {
+        writable Frame $previous = new Frame(4, 1);
+        writable Frame $next = new Frame(4, 1);
+        $previous->write(0, 0, "日x", Style::plain);
+        $next->write(0, 0, "日x", Style::plain);
+        expect(FrameDiff::between($previous, $next)->count)->toEqual(0);
+    });
+
+    it("writes only the runs that changed", function (): void {
+        writable Frame $previous = new Frame(8, 1);
+        writable Frame $next = new Frame(8, 1);
+        $previous->write(0, 0, "abcdefgh", Style::plain);
+        $next->write(0, 0, "aXYdefZh", Style::plain);
+        expect(describeChanges(FrameDiff::between($previous, $next)))
+            ->toEqual("1,0:[XY] 6,0:[Z] ");
+    });
+
+    it("splits a run where the style changes", function (): void {
+        writable Frame $previous = new Frame(4, 1);
+        writable Frame $next = new Frame(4, 1);
+        $next->write(0, 0, "ab", Style::plain);
+        $next->write(2, 0, "cd", Style::plain->withForeground(Color::Red));
+        expect(describeChanges(FrameDiff::between($previous, $next)))
+            ->toEqual("0,0:[ab] 2,0:[cd]* ");
+    });
+
+    it("writes a changed wide cluster once, from its first cell", function (): void {
+        writable Frame $previous = new Frame(4, 1);
+        writable Frame $next = new Frame(4, 1);
+        $previous->write(0, 0, "abcd", Style::plain);
+        $next->write(0, 0, "a日d", Style::plain);
+        expect(describeChanges(FrameDiff::between($previous, $next)))
+            ->toEqual("1,0:[日] ");
+    });
+
+    it("rewrites a whole frame of another size", function (): void {
+        writable Frame $previous = new Frame(2, 1);
+        writable Frame $next = new Frame(3, 1);
+        $next->write(0, 0, "abc", Style::plain);
+        expect(describeChanges(FrameDiff::between($previous, $next)))
+            ->toEqual("0,0:[abc] ");
+    });
+});

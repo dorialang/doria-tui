@@ -1,0 +1,13 @@
+namespace Doria\Tui\Surface;
+
+use Doria\Std\Term\Style;
+
+/// One run of changed cells on a row, all in one style: what a renderer
+/// writes at `$column` and `$row` to bring the terminal up to a new frame.
+/// `$text` holds the run's clusters in order; a wide cluster appears once.
+class Change
+{
+    function __construct(int $column, int $row, string $text, Style $style)
+    {
+    }
+}
