@@ -1,0 +1,61 @@
+namespace Doria\Tui\Input;
+
+use Doria\Std\Term\{Key, KeyModifiers};
+
+/// Which of an application's focusable widgets has focus, named by the
+/// application's own values, for example the cases of an enum. Tab moves to
+/// the next and Shift+Tab to the previous, wrapping at either end.
+class FocusRing<T implements Equatable<T>>
+{
+    internal writable int $index = 0;
+
+    function __construct(take List<T> $members)
+    {
+        if ($this->members->isEmpty) {
+            panic("A focus ring needs at least one member");
+        }
+    }
+
+    function getCurrent(): T
+    {
+        return $this->members[$this->index];
+    }
+
+    function has(T $member): bool
+    {
+        return $this->members[$this->index] == $member;
+    }
+
+    writable function focus(T $member): void
+    {
+        ?int $found = $this->members->indexOf($member);
+        if ($found == null) {
+            panic("A focus ring can only focus one of its members");
+        }
+        $this->index = $found;
+    }
+
+    writable function next(): void
+    {
+        $this->index = ($this->index + 1) % $this->members->count;
+    }
+
+    writable function previous(): void
+    {
+        $this->index = ($this->index + $this->members->count - 1) % $this->members->count;
+    }
+
+    /// Moves focus on Tab or Shift+Tab and reports whether it did.
+    writable function handleKey(Key $key, KeyModifiers $modifiers): KeyResult
+    {
+        if ($key != Key::Tab) {
+            return KeyResult::Ignored;
+        }
+        if ($modifiers->shift) {
+            $this->previous();
+        } else {
+            $this->next();
+        }
+        return KeyResult::Handled;
+    }
+}

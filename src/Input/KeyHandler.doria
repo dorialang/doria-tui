@@ -1,0 +1,11 @@
+namespace Doria\Tui\Input;
+
+use Doria\Std\Term\{Key, KeyModifiers};
+
+/// A widget state that takes keys, such as a list's selection or an input
+/// field's text. An application passes a key to the state of the focused
+/// widget and reads whether it was used.
+interface KeyHandler
+{
+    writable function handleKey(Key $key, KeyModifiers $modifiers): KeyResult;
+}

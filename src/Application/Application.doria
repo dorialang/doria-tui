@@ -1,0 +1,16 @@
+namespace Doria\Tui\Application;
+
+use Doria\Std\Term\TerminalEvent;
+use Doria\Tui\Layout\Element;
+
+/// An application in the model, update, view style (Decision 0001): it owns
+/// its state, `update` changes that state for each terminal event, and
+/// `view` describes the screen for the current state as a fresh element tree.
+interface Application
+{
+    /// Changes the state for one key or resize and says whether to go on.
+    writable function update(TerminalEvent $event): Step;
+
+    /// The screen for the current state.
+    function view(): Element;
+}

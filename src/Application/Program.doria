@@ -1,0 +1,76 @@
+namespace Doria\Tui\Application;
+
+use Doria\Std\Io\Wait;
+use Doria\Std\Term\{Size, TerminalError, TerminalEvent};
+use Doria\Tui\TuiError;
+use Doria\Tui\Input\EventBatch;
+use Doria\Tui\Layout\Region;
+use Doria\Tui\Surface\Frame;
+use Doria\Tui\Terminal\Session;
+
+/// Runs an `Application` on a terminal session until it quits or input ends.
+///
+/// The program draws the first view, then waits for events. It hands every
+/// event already waiting to `update` and draws once after the batch, only
+/// when at least one event arrived. A resize reaches `update` too, after the
+/// session has taken the new size. The terminal is given back when the
+/// program returns or throws.
+class Program
+{
+    /// Runs on the alternate screen.
+    static function run(writable Application $application): void throws TuiError, TerminalError
+    {
+        writable Session $session = Session::start();
+        self::loop($session, $application);
+        $session->end();
+    }
+
+    /// Runs inline, in `$rows` rows below the cursor.
+    static function runInline(writable Application $application, int $rows): void throws TuiError, TerminalError
+    {
+        writable Session $session = Session::startInline($rows);
+        self::loop($session, $application);
+        $session->end();
+    }
+
+    internal static function loop(writable Session $session, writable Application $application): void throws TerminalError
+    {
+        self::draw($session, $application);
+        while (true) {
+            EventBatch $batch = EventBatch::next($session, Wait::Indefinite);
+            foreach ($batch->events as TerminalEvent $event) {
+                self::follow($session, $event);
+                if ($application->update($event) == Step::Quit) {
+                    return;
+                }
+            }
+            if ($batch->isClosed) {
+                return;
+            }
+            if (!$batch->events->isEmpty) {
+                self::draw($session, $application);
+            }
+        }
+    }
+
+    /// Gives the session a new size before the application sees the resize.
+    internal static function follow(writable Session $session, TerminalEvent $event): void throws TerminalError
+    {
+        ?Size $size = match ($event) {
+            TerminalEvent::Resized($size) => $size,
+            TerminalEvent::Key($key, $modifiers) => null,
+        };
+        if ($size != null) {
+            $session->resize($size);
+        }
+    }
+
+    internal static function draw(writable Session $session, Application $application): void throws TerminalError
+    {
+        int $columns = $session->getColumns();
+        int $rows = $session->getRows();
+        writable Frame $frame = new Frame($columns, $rows);
+        $application->view()->draw(new Region(0, 0, $columns, $rows), $frame);
+        $session->present($frame);
+    }
+}

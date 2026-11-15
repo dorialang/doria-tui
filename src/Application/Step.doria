@@ -1,0 +1,10 @@
+namespace Doria\Tui\Application;
+
+/// What a program does after an application handles an event.
+enum Step
+{
+    /// Keep running and draw the new state.
+    case Continue;
+    /// End the program; the terminal is given back.
+    case Quit;
+}

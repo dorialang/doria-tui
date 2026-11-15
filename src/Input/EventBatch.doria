@@ -1,0 +1,50 @@
+namespace Doria\Tui\Input;
+
+use Doria\Std\Io\Wait;
+use Doria\Std\Term\{TerminalError, TerminalEvent, TerminalWaitResult};
+use Doria\Tui\Terminal\Session;
+
+/// The events waiting for a program after one wait: the first one it waited
+/// for and every one already behind it. A program handles the whole batch and
+/// then draws once, so a burst of keys such as a paste draws one frame.
+class EventBatch
+{
+    /// Waits as `$wait` says for one event, then takes every event that is
+    /// already waiting. `$isClosed` is true when input has ended.
+    static function next(writable Session $session, Wait $wait): EventBatch throws TerminalError
+    {
+        writable List<TerminalEvent> $events = [];
+        writable bool $closed = false;
+        writable Wait $next = $wait;
+        while (true) {
+            TerminalWaitResult $result = $session->getNextEvent($next);
+            bool $done = match ($result) {
+                TerminalWaitResult::Event($event) => self::keep($events, $event),
+                TerminalWaitResult::TimedOut => true,
+                TerminalWaitResult::Cancelled => true,
+                TerminalWaitResult::Closed => self::close($closed),
+            };
+            if ($done) {
+                break;
+            }
+            $next = Wait::Immediate;
+        }
+        return new EventBatch($events, $closed);
+    }
+
+    function __construct(take List<TerminalEvent> $events, bool $isClosed)
+    {
+    }
+
+    internal static function keep(writable List<TerminalEvent> $events, TerminalEvent $event): bool
+    {
+        $events->add($event);
+        return false;
+    }
+
+    internal static function close(writable bool $closed): bool
+    {
+        $closed = true;
+        return true;
+    }
+}

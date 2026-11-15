@@ -1,0 +1,10 @@
+namespace Doria\Tui\Input;
+
+/// What a key handler did with a key.
+enum KeyResult
+{
+    /// The handler used the key; nothing else should.
+    case Handled;
+    /// The handler does not use this key; the caller may pass it on.
+    case Ignored;
+}
