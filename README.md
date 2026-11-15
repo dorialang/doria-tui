@@ -12,11 +12,10 @@ code never writes an escape sequence.
 
 ## Using it
 
-Add the package to an application's `Baton.toml`:
+Add the package to an application with Baton, naming the release tag to use:
 
-```toml
-[dependencies]
-"dorialang/tui" = { source = "git", url = "https://github.com/dorialang/doria-tui.git", tag = "v2026.3.1", version = "^2026.3" }
+```text
+baton add dorialang/tui --source git --url https://github.com/dorialang/doria-tui.git --tag <release-tag>
 ```
 
 ## License
