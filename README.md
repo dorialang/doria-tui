@@ -7,6 +7,11 @@ library lays the tree out in terminal cells and redraws only the cells that
 changed. The same source runs in a Linux terminal, a macOS terminal and a
 native Windows console.
 
+The library is built in public layers: the terminal session and cell surface,
+layout and elements, input and focus, and application models. Widgets and
+application models written outside the library use the same interfaces as the
+built-in ones.
+
 The library is written in Doria and draws through `Doria\Std\Term`. Application
 code never writes an escape sequence.
 

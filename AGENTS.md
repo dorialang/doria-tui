@@ -14,13 +14,18 @@ publishing, branches, cleanup and resource use for every repository.
 
 ## Design authority
 
-- Accepted package decisions live in `docs/decisions/`. An API illustration
-  that no accepted decision specifies is marked as a proposal.
-- The application model is model, update, view (Andrew, 2026-11-15): the
-  application owns one state value, `update` consumes a key or resize event and
-  changes it, `view` builds a fresh element tree, and the library lays it out
-  and writes only the cells that changed. Widgets hold no callbacks and no
-  references to their parents.
+- Accepted package decisions live in `docs/decisions/`; Decision 0001 sets
+  the architecture. An API illustration that no accepted decision specifies is
+  marked as a proposal.
+- The library is four public layers: terminal session and cell surface,
+  layout and the `Element` interface, input and focus, and application
+  models. Each works without the layers above it. Built-in widgets use only
+  public interfaces, so a widget or an application model written outside the
+  package can do anything a built-in one can.
+- Model, update, view is the first application model: the application owns
+  one state value, `update` receives each terminal event and changes it,
+  `view` builds a fresh element tree. Widget state is an owned typed value
+  held by whatever uses the widget. Elements carry no closures.
 - Text width comes from `$text->displayWidth`. Do not keep width tables here.
 - Raw mode, the alternate screen and their restoring guards belong to
   `Doria\Std\Term`. Frame buffers, layout, focus and diffing belong here.
