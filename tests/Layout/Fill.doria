@@ -1,0 +1,39 @@
+namespace Doria\Tui\Tests\Layout;
+
+use Doria\Std\Term\Style;
+use Doria\Tui\Layout\{Element, Extent, Region};
+use Doria\Tui\Surface\Frame;
+
+/// A third-party element: it fills its region with one character and
+/// measures a fixed size. It uses only the public Element interface.
+class Fill implements Element
+{
+    function __construct(string $glyph, int $width, int $height)
+    {
+    }
+
+    function measure(int $width, int $height): Extent
+    {
+        writable int $columns = $this->width;
+        if ($columns > $width) {
+            $columns = $width;
+        }
+        writable int $rows = $this->height;
+        if ($rows > $height) {
+            $rows = $height;
+        }
+        return new Extent($columns, $rows);
+    }
+
+    function draw(Region $region, writable Frame $frame): void
+    {
+        for (writable int $row = 0; $row < $region->height; $row++) {
+            $frame->write(
+                $region->column,
+                $region->row + $row,
+                String::repeat($this->glyph, $region->width),
+                Style::plain,
+            );
+        }
+    }
+}

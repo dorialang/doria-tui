@@ -1,0 +1,52 @@
+namespace Doria\Tui\Layout;
+
+use Doria\Std\Term\Style;
+use Doria\Tui\Surface\Frame;
+
+/// Text in one style, one line per `\n`. Lines are measured with
+/// `$text->displayWidth` and clipped at the region's right edge; lines below
+/// the region are not drawn.
+class Text implements Element
+{
+    function __construct(string $text, Style $style)
+    {
+    }
+
+    static function plain(string $text): Text
+    {
+        return new Text($text, Style::plain);
+    }
+
+    function measure(int $width, int $height): Extent
+    {
+        List<string> $lines = String::split($this->text, "\n");
+        writable int $widest = 0;
+        foreach ($lines as string $line) {
+            if ($line->displayWidth > $widest) {
+                $widest = $line->displayWidth;
+            }
+        }
+        writable int $columns = $widest;
+        if ($columns > $width) {
+            $columns = $width;
+        }
+        writable int $rows = $lines->count;
+        if ($rows > $height) {
+            $rows = $height;
+        }
+        return new Extent($columns, $rows);
+    }
+
+    function draw(Region $region, writable Frame $frame): void
+    {
+        List<string> $lines = String::split($this->text, "\n");
+        writable int $row = 0;
+        foreach ($lines as string $line) {
+            if ($row >= $region->height) {
+                break;
+            }
+            $frame->write($region->column, $region->row + $row, $line, $this->style, end: $region->column + $region->width);
+            $row++;
+        }
+    }
+}

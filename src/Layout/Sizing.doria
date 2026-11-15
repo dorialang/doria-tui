@@ -1,0 +1,48 @@
+namespace Doria\Tui\Layout;
+
+/// A child's size rule with optional bounds. The bounds apply after the rule:
+/// a child never takes fewer than `$minimum` cells or more than `$maximum`,
+/// space permitting.
+class Sizing
+{
+    function __construct(SizeRule $rule, int $minimum, ?int $maximum)
+    {
+        if ($minimum < 0) {
+            panic("A minimum size cannot be negative");
+        }
+    }
+
+    static function exact(int $cells): Sizing
+    {
+        return new Sizing(SizeRule::Exact($cells), 0, null);
+    }
+
+    static function measured(): Sizing
+    {
+        return new Sizing(SizeRule::Measured, 0, null);
+    }
+
+    static function fill(int $weight = 1): Sizing
+    {
+        return new Sizing(SizeRule::Fill($weight), 0, null);
+    }
+
+    function between(int $minimum, ?int $maximum): Sizing
+    {
+        return new Sizing($this->rule, $minimum, $maximum);
+    }
+
+    /// `$cells` held within this sizing's minimum and maximum.
+    function bound(int $cells): int
+    {
+        writable int $bounded = $cells;
+        int $ceiling = $this->maximum ?? $cells;
+        if ($bounded > $ceiling) {
+            $bounded = $ceiling;
+        }
+        if ($bounded < $this->minimum) {
+            $bounded = $this->minimum;
+        }
+        return $bounded;
+    }
+}

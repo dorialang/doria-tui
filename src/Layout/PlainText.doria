@@ -1,0 +1,23 @@
+namespace Doria\Tui\Layout;
+
+use Doria\Tui\Surface\Frame;
+
+/// A view drawn once as plain text, for output that is not a terminal: a
+/// report for automation or a screen reader.
+class PlainText
+{
+    /// Draws `$root` into `$width` columns and as many rows as it measures,
+    /// up to `$maximumRows`, and returns the rows as lines without styles or
+    /// trailing spaces, each ending in `\n`.
+    static function render(Element $root, int $width, int $maximumRows): string
+    {
+        Extent $extent = $root->measure($width, $maximumRows);
+        writable Frame $frame = new Frame($width, $extent->height);
+        $root->draw(new Region(0, 0, $width, $extent->height), $frame);
+        writable string $text = "";
+        for (writable int $row = 0; $row < $extent->height; $row++) {
+            $text = $text . String::trimEnd($frame->line($row)) . "\n";
+        }
+        return $text;
+    }
+}

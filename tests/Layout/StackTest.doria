@@ -1,0 +1,122 @@
+namespace Doria\Tui\Tests\Layout;
+
+use Doria\Std\Term\Style;
+use Doria\Std\Test\{describe, it, expect};
+use Doria\Tui\Layout\{Child, Element, Extent, PlainText, Region, Sizing, Stack, Text};
+use Doria\Tui\Surface\Frame;
+
+function drawn(Element $root, int $width, int $height): string
+{
+    writable Frame $frame = new Frame($width, $height);
+    $root->draw(new Region(0, 0, $width, $height), $frame);
+    writable string $text = "";
+    for (writable int $row = 0; $row < $height; $row++) {
+        $text = $text . $frame->line($row) . "|";
+    }
+    return $text;
+}
+
+describe("Stack", function (): void {
+    it("gives exact sizes, then measured sizes, then fills the rest", function (): void {
+        let $row = Stack::row([
+            new Child(new Fill("a", 9, 1), Sizing::exact(2)),
+            new Child(new Fill("b", 3, 1), Sizing::measured()),
+            new Child(new Fill("c", 9, 1), Sizing::fill()),
+        ]);
+        expect(drawn($row, 10, 1))->toEqual("aabbbccccc|");
+    });
+
+    it("shares the rest among fills by weight", function (): void {
+        let $row = Stack::row([
+            new Child(new Fill("a", 9, 1), Sizing::fill(1)),
+            new Child(new Fill("b", 9, 1), Sizing::fill(3)),
+        ]);
+        expect(drawn($row, 8, 1))->toEqual("aabbbbbb|");
+    });
+
+    it("gives leftover cells from uneven shares to the first fills", function (): void {
+        let $row = Stack::row([
+            new Child(new Fill("a", 9, 1), Sizing::fill()),
+            new Child(new Fill("b", 9, 1), Sizing::fill()),
+            new Child(new Fill("c", 9, 1), Sizing::fill()),
+        ]);
+        expect(drawn($row, 8, 1))->toEqual("aaabbbcc|");
+    });
+
+    it("holds a child within its bounds", function (): void {
+        let $row = Stack::row([
+            new Child(new Fill("a", 9, 1), Sizing::fill()->between(0, 2)),
+            new Child(new Fill("b", 9, 1), Sizing::fill()),
+        ]);
+        expect(drawn($row, 6, 1))->toEqual("aabbbb|");
+    });
+
+    it("clips children that do not fit and skips those with no space", function (): void {
+        let $row = Stack::row([
+            new Child(new Fill("a", 9, 1), Sizing::exact(4)),
+            new Child(new Fill("b", 9, 1), Sizing::exact(4)),
+            new Child(new Fill("c", 9, 1), Sizing::exact(4)),
+        ]);
+        expect(drawn($row, 6, 1))->toEqual("aaaabb|");
+    });
+
+    it("places spacing between children", function (): void {
+        let $row = Stack::row([
+            new Child(new Fill("a", 2, 1), Sizing::measured()),
+            new Child(new Fill("b", 2, 1), Sizing::measured()),
+        ], spacing: 1);
+        expect(drawn($row, 6, 1))->toEqual("aa bb |");
+    });
+
+    it("stacks a column top to bottom across its whole width", function (): void {
+        let $column = Stack::column([
+            new Child(Text::plain("title"), Sizing::exact(1)),
+            new Child(new Fill(".", 9, 9), Sizing::fill()),
+            new Child(Text::plain("status"), Sizing::exact(1)),
+        ]);
+        expect(drawn($column, 6, 4))->toEqual("title |......|......|status|");
+    });
+
+    it("nests rows inside columns", function (): void {
+        let $view = Stack::column([
+            new Child(Stack::row([
+                new Child(Text::plain("日本"), Sizing::measured()),
+                new Child(Text::plain("x"), Sizing::fill()),
+            ]), Sizing::exact(1)),
+            new Child(Text::plain("énd"), Sizing::exact(1)),
+        ]);
+        expect(drawn($view, 6, 2))->toEqual("日本x |énd   |");
+    });
+
+    it("measures its natural size", function (): void {
+        let $column = Stack::column([
+            new Child(Text::plain("abc"), Sizing::measured()),
+            new Child(Text::plain("a\nb"), Sizing::measured()),
+        ], spacing: 1);
+        Extent $extent = $column->measure(20, 20);
+        expect($extent->width)->toEqual(3);
+        expect($extent->height)->toEqual(4);
+    });
+});
+
+describe("Text", function (): void {
+    it("clips lines at the region's edges", function (): void {
+        expect(drawn(Text::plain("abcdef\nxy\nhidden"), 4, 2))->toEqual("abcd|xy  |");
+    });
+
+    it("measures by display width", function (): void {
+        Extent $extent = Text::plain("日本\na")->measure(10, 10);
+        expect($extent->width)->toEqual(4);
+        expect($extent->height)->toEqual(2);
+    });
+});
+
+describe("PlainText", function (): void {
+    it("renders a view as lines without styles or trailing spaces", function (): void {
+        let $view = Stack::column([
+            new Child(new Text("Report", Style::plain->withBold()), Sizing::measured()),
+            new Child(Text::plain("  one\n  two"), Sizing::measured()),
+        ]);
+        expect(PlainText::render($view, 20, 10))->toEqual("Report\n  one\n  two\n");
+    });
+});

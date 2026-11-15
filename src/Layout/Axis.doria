@@ -1,0 +1,10 @@
+namespace Doria\Tui\Layout;
+
+/// The direction a stack places its children in.
+enum Axis
+{
+    /// Left to right: a row.
+    case Horizontal;
+    /// Top to bottom: a column.
+    case Vertical;
+}

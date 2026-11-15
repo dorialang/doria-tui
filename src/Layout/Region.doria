@@ -1,0 +1,12 @@
+namespace Doria\Tui\Layout;
+
+/// A rectangle of cells in a frame: its top-left cell and its size.
+class Region
+{
+    function __construct(int $column, int $row, int $width, int $height)
+    {
+        if ($width < 0 or $height < 0) {
+            panic("A region cannot have a negative size");
+        }
+    }
+}

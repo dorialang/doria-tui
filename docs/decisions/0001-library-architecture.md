@@ -42,7 +42,9 @@ Each is public and usable without the layers above it.
 
 Built-in widgets (text, container, list, input field, status bar) use only
 these public interfaces. A widget written outside the package can do anything
-a built-in one can.
+a built-in one can. Doria's `internal` restricts a member to its declaring
+class, so one built-in type cannot reach another's internals; the language
+enforces this rule.
 
 ### Model, update, view
 
@@ -72,6 +74,16 @@ its element.
   does not know.
 - An application model that wants state kept by key can be built in layer 4
   on these values.
+
+### Layout
+
+"Size rules per child (Recommended)". A row or column (`Stack`) gives each
+child one sizing rule along its axis: an exact number of cells, its measured
+size, or a fill with a weight, each optionally held between a minimum and a
+maximum. Exact sizes are given first, then measured sizes, in order, each no
+larger than what is left; fills then share the rest by weight, and the cells
+an uneven share leaves go to the first fills. Across the axis each child gets
+the stack's whole extent. A child that gets no space is not drawn.
 
 ### Text width
 

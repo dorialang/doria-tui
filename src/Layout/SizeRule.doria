@@ -1,0 +1,13 @@
+namespace Doria\Tui\Layout;
+
+/// How a child of a row or column takes its share of the space.
+enum SizeRule
+{
+    /// Exactly this many cells.
+    case Exact(int $cells);
+    /// The size the child measures.
+    case Measured;
+    /// A share of what the exact and measured children leave, in proportion
+    /// to its weight among the other fills.
+    case Fill(int $weight);
+}

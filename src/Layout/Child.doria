@@ -1,0 +1,10 @@
+namespace Doria\Tui\Layout;
+
+/// One element of a row or column with the rule for its size along the
+/// row or column.
+class Child
+{
+    function __construct(take Element $element, take Sizing $sizing)
+    {
+    }
+}

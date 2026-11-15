@@ -1,0 +1,12 @@
+namespace Doria\Tui\Layout;
+
+/// A size in cells that an element asks for.
+class Extent
+{
+    function __construct(int $width, int $height)
+    {
+        if ($width < 0 or $height < 0) {
+            panic("An extent cannot be negative");
+        }
+    }
+}

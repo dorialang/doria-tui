@@ -1,0 +1,199 @@
+namespace Doria\Tui\Layout;
+
+use Doria\Tui\Surface\Frame;
+
+/// Children placed one after another along an axis, `$spacing` cells apart.
+/// `Stack::row` and `Stack::column` build one.
+///
+/// Along the axis each child takes the space its `Sizing` gives it: exact
+/// sizes first, then measured sizes, in order, each no larger than what is
+/// left; then fills share what remains by weight. Across the axis every child
+/// gets the stack's whole extent. A child that gets no space is not drawn.
+class Stack implements Element
+{
+    function __construct(Axis $axis, take List<Child> $children, int $spacing)
+    {
+        if ($spacing < 0) {
+            panic("Stack spacing cannot be negative");
+        }
+    }
+
+    static function row(take List<Child> $children, int $spacing = 0): Stack
+    {
+        return new Stack(Axis::Horizontal, $children, $spacing);
+    }
+
+    static function column(take List<Child> $children, int $spacing = 0): Stack
+    {
+        return new Stack(Axis::Vertical, $children, $spacing);
+    }
+
+    function measure(int $width, int $height): Extent
+    {
+        int $along = $this->along($width, $height);
+        int $across = $this->across($width, $height);
+        List<int> $sizes = $this->divide($along, $across, false);
+        writable int $total = 0;
+        writable int $widest = 0;
+        writable int $index = 0;
+        foreach ($this->children as Child $child) {
+            int $size = $sizes[$index];
+            $total += $size;
+            if ($size > 0) {
+                Extent $extent = $this->measureChild($child, $size, $across);
+                int $crossSize = $this->across($extent->width, $extent->height);
+                if ($crossSize > $widest) {
+                    $widest = $crossSize;
+                }
+            }
+            $index++;
+        }
+        $total += $this->spacingWithin($along);
+        if ($total > $along) {
+            $total = $along;
+        }
+        return $this->extent($total, $widest);
+    }
+
+    function draw(Region $region, writable Frame $frame): void
+    {
+        int $along = $this->along($region->width, $region->height);
+        int $across = $this->across($region->width, $region->height);
+        List<int> $sizes = $this->divide($along, $across, true);
+        writable int $offset = 0;
+        writable int $index = 0;
+        foreach ($this->children as Child $child) {
+            int $size = $sizes[$index];
+            if ($size > 0) {
+                Region $place = when ($this->axis == Axis::Horizontal): Region {
+                    return new Region($region->column + $offset, $region->row, $size, $region->height);
+                } else {
+                    return new Region($region->column, $region->row + $offset, $region->width, $size);
+                };
+                $child->element->draw($place, $frame);
+                $offset += $size + $this->spacing;
+            }
+            $index++;
+        }
+    }
+
+    /// The cells each child gets along the axis, out of `$available`. Fills
+    /// share the remainder only when `$fill` is set; measuring a stack asks
+    /// for its natural size, in which a fill takes its minimum.
+    internal function divide(int $available, int $across, bool $fill): List<int>
+    {
+        writable List<int> $sizes = [];
+        writable int $left = $available - $this->spacingWithin($available);
+        writable int $weights = 0;
+        foreach ($this->children as Child $child) {
+            writable int $size = match ($child->sizing->rule) {
+                SizeRule::Exact($cells) => $child->sizing->bound($cells),
+                SizeRule::Measured => $child->sizing->bound($this->measuredAlong($child, $left, $across)),
+                SizeRule::Fill($weight) => $child->sizing->bound(0),
+            };
+            $weights += $this->weight($child);
+            if ($size > $left) {
+                $size = $left;
+            }
+            $left -= $size;
+            $sizes->add($size);
+        }
+        if (!$fill or $weights == 0 or $left == 0) {
+            return $sizes;
+        }
+        int $share = $left;
+        writable int $given = 0;
+        writable int $index = 0;
+        foreach ($this->children as Child $child) {
+            int $weight = $this->weight($child);
+            if ($weight > 0) {
+                int $size = $child->sizing->bound($sizes[$index] + $share * $weight / $weights);
+                $given += $size - $sizes[$index];
+                $sizes[$index] = $size;
+            }
+            $index++;
+        }
+        // Integer shares leave a few cells; they go to the first fills.
+        writable int $rest = $share - $given;
+        $index = 0;
+        foreach ($this->children as Child $child) {
+            if ($rest <= 0) {
+                break;
+            }
+            if ($this->weight($child) > 0) {
+                int $size = $child->sizing->bound($sizes[$index] + 1);
+                if ($size > $sizes[$index]) {
+                    $sizes[$index] = $size;
+                    $rest--;
+                }
+            }
+            $index++;
+        }
+        return $sizes;
+    }
+
+    internal function weight(Child $child): int
+    {
+        return match ($child->sizing->rule) {
+            SizeRule::Exact($cells) => 0,
+            SizeRule::Measured => 0,
+            SizeRule::Fill($weight) => $weight,
+        };
+    }
+
+    internal function measuredAlong(Child $child, int $along, int $across): int
+    {
+        Extent $extent = $this->measureChild($child, $along, $across);
+        return $this->along($extent->width, $extent->height);
+    }
+
+    internal function measureChild(Child $child, int $along, int $across): Extent
+    {
+        return when ($this->axis == Axis::Horizontal): Extent {
+            return $child->element->measure($along, $across);
+        } else {
+            return $child->element->measure($across, $along);
+        };
+    }
+
+    internal function spacingWithin(int $available): int
+    {
+        int $count = $this->children->count;
+        if ($count < 2) {
+            return 0;
+        }
+        int $spacing = $this->spacing * ($count - 1);
+        return when ($spacing > $available): int {
+            return $available;
+        } else {
+            return $spacing;
+        };
+    }
+
+    internal function along(int $width, int $height): int
+    {
+        return when ($this->axis == Axis::Horizontal): int {
+            return $width;
+        } else {
+            return $height;
+        };
+    }
+
+    internal function across(int $width, int $height): int
+    {
+        return when ($this->axis == Axis::Horizontal): int {
+            return $height;
+        } else {
+            return $width;
+        };
+    }
+
+    internal function extent(int $along, int $across): Extent
+    {
+        return when ($this->axis == Axis::Horizontal): Extent {
+            return new Extent($along, $across);
+        } else {
+            return new Extent($across, $along);
+        };
+    }
+}

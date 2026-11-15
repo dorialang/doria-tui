@@ -1,0 +1,17 @@
+namespace Doria\Tui\Layout;
+
+use Doria\Tui\Surface\Frame;
+
+/// Anything that can be laid out and drawn into a frame. Every built-in
+/// element implements this interface and nothing else, so an element written
+/// outside the library can do anything a built-in one can.
+interface Element
+{
+    /// The size this element would take, given at most `$width` columns and
+    /// `$height` rows. The result is never larger than either bound.
+    function measure(int $width, int $height): Extent;
+
+    /// Draws the element into `$region` of `$frame`. Nothing is drawn outside
+    /// the region.
+    function draw(Region $region, writable Frame $frame): void;
+}
