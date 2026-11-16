@@ -1,0 +1,78 @@
+namespace Doria\Tui\Widgets;
+
+use Doria\Std\Term\Style;
+use Doria\Tui\Layout\{Element, Extent, Region};
+use Doria\Tui\Surface\Frame;
+
+/// Draws a list's items one per row from its state's scroll position, with
+/// the selected item in `$selectedStyle`. It records the rows it was drawn at
+/// in the state's viewport.
+class ListView implements Element
+{
+    function __construct(
+        take List<string> $items,
+        ?int $selected,
+        int $offset,
+        take WritableSharedReference<Viewport> $viewport,
+        Style $itemStyle,
+        Style $selectedStyle,
+    ) {
+    }
+
+    /// The view of `$state` over `$items`, the selected item reversed.
+    static function of(take List<string> $items, ListState $state): ListView
+    {
+        return new ListView(
+            $items,
+            $state->getSelected(),
+            $state->getOffset(),
+            $state->shareViewport(),
+            Style::plain,
+            Style::plain->withReverse(),
+        );
+    }
+
+    function measure(int $width, int $height): Extent
+    {
+        writable int $rows = $this->items->count;
+        if ($rows > $height) {
+            $rows = $height;
+        }
+        return new Extent($width, $rows);
+    }
+
+    function draw(Region $region, writable Frame $frame): void
+    {
+        $this->viewport->acquireWritableAccess()->record($region->width, $region->height);
+        int $first = $this->firstInView($region->height);
+        for (writable int $row = 0; $row < $region->height; $row++) {
+            int $index = $first + $row;
+            if ($index >= $this->items->count) {
+                break;
+            }
+            ?int $selected = $this->selected;
+            Style $style = when ($selected != null and $selected == $index): Style {
+                return $this->selectedStyle;
+            } else {
+                return $this->itemStyle;
+            };
+            string $padded = String::padEnd($this->items[$index], $region->width);
+            $frame->write($region->column, $region->row + $row, $padded, $style, end: $region->column + $region->width);
+        }
+    }
+
+    /// The state's offset, moved only as far as needed to show the selection
+    /// in `$rows` rows when the height has changed since the state last saw it.
+    internal function firstInView(int $rows): int
+    {
+        writable int $first = $this->offset;
+        int $selected = $this->selected ?? 0;
+        if ($rows > 0 and $selected >= $first + $rows) {
+            $first = $selected - $rows + 1;
+        }
+        if ($selected < $first) {
+            $first = $selected;
+        }
+        return $first;
+    }
+}

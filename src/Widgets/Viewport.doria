@@ -1,0 +1,29 @@
+namespace Doria\Tui\Widgets;
+
+/// The size a scrolling element was last drawn at. A widget state and the
+/// element that draws it share one viewport through a
+/// `WritableSharedReference<Viewport>`: the element records its size while it
+/// draws, and the state reads it on the next key, so it can keep the cursor or
+/// selection in view. Any scrolling widget, built in or not, uses the same
+/// path.
+class Viewport
+{
+    internal writable int $columns = 0;
+    internal writable int $rows = 0;
+
+    function getColumns(): int
+    {
+        return $this->columns;
+    }
+
+    function getRows(): int
+    {
+        return $this->rows;
+    }
+
+    writable function record(int $columns, int $rows): void
+    {
+        $this->columns = $columns;
+        $this->rows = $rows;
+    }
+}

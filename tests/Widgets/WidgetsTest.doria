@@ -1,0 +1,117 @@
+namespace Doria\Tui\Tests\Widgets;
+
+use Doria\Std\Term\Style;
+use Doria\Std\Test\{describe, it, expect};
+use Doria\Tui\Layout\{Element, Region};
+use Doria\Tui\Surface\Frame;
+use Doria\Tui\Widgets\{InputField, InputState, ListState, ListView};
+
+function rows(Element $root, int $width, int $height): string
+{
+    writable Frame $frame = new Frame($width, $height);
+    $root->draw(new Region(0, 0, $width, $height), $frame);
+    writable string $text = "";
+    for (writable int $row = 0; $row < $height; $row++) {
+        $text = $text . $frame->line($row) . "|";
+    }
+    return $text;
+}
+
+function items(): List<string>
+{
+    return ["one", "two", "three", "four", "five", "six"];
+}
+
+describe("ListState and ListView", function (): void {
+    it("selects the first item and draws from the top", function (): void {
+        let $state = new ListState(6);
+        expect($state->getSelected() ?? -1)->toEqual(0);
+        expect(rows(ListView::of(items(), $state), 5, 3))->toEqual("one  |two  |three|");
+    });
+
+    it("has no selection when empty", function (): void {
+        let $state = new ListState(0);
+        expect($state->getSelected() == null)->toBeTrue();
+    });
+
+    it("keeps the window still until the selection reaches an edge", function (): void {
+        writable ListState $state = new ListState(6);
+        rows(ListView::of(items(), $state), 5, 3);
+        $state->select(2);
+        expect($state->getOffset())->toEqual(0);
+        $state->select(4);
+        expect($state->getOffset())->toEqual(2);
+        $state->select(3);
+        expect($state->getOffset())->toEqual(2);
+        $state->select(1);
+        expect($state->getOffset())->toEqual(1);
+        expect(rows(ListView::of(items(), $state), 5, 3))->toEqual("two  |three|four |");
+    });
+
+    it("holds the selection inside the list", function (): void {
+        writable ListState $state = new ListState(3);
+        $state->select(9);
+        expect($state->getSelected() ?? -1)->toEqual(2);
+        $state->select(-4);
+        expect($state->getSelected() ?? -1)->toEqual(0);
+        $state->select(2);
+        $state->setCount(1);
+        expect($state->getSelected() ?? -1)->toEqual(0);
+    });
+
+    it("draws the selected item in its own style", function (): void {
+        writable ListState $state = new ListState(6);
+        $state->select(1);
+        writable Frame $frame = new Frame(5, 3);
+        ListView::of(items(), $state)->draw(new Region(0, 0, 5, 3), $frame);
+        expect($frame->styleAt(0, 1) == Style::plain->withReverse())->toBeTrue();
+        expect($frame->styleAt(0, 0) == Style::plain)->toBeTrue();
+    });
+});
+
+describe("InputState and InputField", function (): void {
+    it("inserts at the cursor and erases by grapheme", function (): void {
+        writable InputState $state = new InputState();
+        $state->insert("héllo");
+        expect($state->getCursor())->toEqual(5);
+        $state->moveLeft();
+        $state->moveLeft();
+        $state->insert("👍🏾");
+        expect($state->getText())->toEqual("hél👍🏾lo");
+        $state->backspace();
+        $state->delete();
+        expect($state->getText())->toEqual("hélo");
+        $state->moveHome();
+        $state->delete();
+        $state->moveEnd();
+        $state->backspace();
+        expect($state->getText())->toEqual("él");
+    });
+
+    it("does not insert clusters that take no cells", function (): void {
+        writable InputState $state = new InputState();
+        $state->insert("a\nb\t");
+        expect($state->getText())->toEqual("ab");
+    });
+
+    it("draws the cursor cell when focused", function (): void {
+        writable InputState $state = new InputState();
+        $state->insert("ab");
+        writable Frame $frame = new Frame(5, 1);
+        InputField::of($state, true)->draw(new Region(0, 0, 5, 1), $frame);
+        expect($frame->line(0))->toEqual("ab   ");
+        expect($frame->styleAt(2, 0) == Style::plain->withReverse())->toBeTrue();
+        expect($frame->styleAt(1, 0) == Style::plain)->toBeTrue();
+    });
+
+    it("scrolls sideways to keep the cursor in view", function (): void {
+        writable InputState $state = new InputState();
+        rows(InputField::of($state, true), 4, 1);
+        $state->insert("abcdef");
+        expect($state->getOffset())->toEqual(3);
+        expect(rows(InputField::of($state, true), 4, 1))->toEqual("def |");
+        $state->moveHome();
+        expect($state->getOffset())->toEqual(0);
+        expect(rows(InputField::of($state, true), 4, 1))->toEqual("abcd|");
+    });
+});

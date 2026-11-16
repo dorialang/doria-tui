@@ -1,0 +1,172 @@
+namespace Doria\Tui\Widgets;
+
+use Doria\Std\Term\{Key, KeyModifiers};
+use Doria\Tui\Input\{KeyHandler, KeyResult};
+
+/// The text and cursor of a one-line input field, edited by grapheme
+/// cluster. Text longer than the field scrolls sideways so the cursor stays
+/// in view, using the width its `InputField` was last drawn at.
+class InputState implements KeyHandler
+{
+    internal writable List<string> $graphemes = [];
+    internal writable int $cursor = 0;
+    internal writable int $offset = 0;
+    internal WritableSharedReference<Viewport> $viewport;
+
+    function __construct()
+    {
+        $this->viewport = new WritableSharedReference(new Viewport());
+    }
+
+    function getText(): string
+    {
+        return String::join("", $this->graphemes);
+    }
+
+    /// The cursor's position, in grapheme clusters from the start.
+    function getCursor(): int
+    {
+        return $this->cursor;
+    }
+
+    /// The first cluster in view.
+    function getOffset(): int
+    {
+        return $this->offset;
+    }
+
+    function shareViewport(): WritableSharedReference<Viewport>
+    {
+        return $this->viewport->share();
+    }
+
+    /// Inserts `$text` at the cursor and moves the cursor after it. Clusters
+    /// that take no cells, such as a newline, are not inserted.
+    writable function insert(string $text): void
+    {
+        foreach ($text->graphemes as string $grapheme) {
+            if ($grapheme->displayWidth > 0) {
+                $this->graphemes->insertAt($this->cursor, $grapheme);
+                $this->cursor++;
+            }
+        }
+        $this->follow();
+    }
+
+    /// Erases the cluster before the cursor.
+    writable function backspace(): void
+    {
+        if ($this->cursor > 0) {
+            $this->cursor--;
+            $this->graphemes->removeAt($this->cursor);
+            $this->follow();
+        }
+    }
+
+    /// Erases the cluster at the cursor.
+    writable function delete(): void
+    {
+        if ($this->cursor < $this->graphemes->count) {
+            $this->graphemes->removeAt($this->cursor);
+            $this->follow();
+        }
+    }
+
+    writable function moveLeft(): void
+    {
+        if ($this->cursor > 0) {
+            $this->cursor--;
+            $this->follow();
+        }
+    }
+
+    writable function moveRight(): void
+    {
+        if ($this->cursor < $this->graphemes->count) {
+            $this->cursor++;
+            $this->follow();
+        }
+    }
+
+    writable function moveHome(): void
+    {
+        $this->cursor = 0;
+        $this->follow();
+    }
+
+    writable function moveEnd(): void
+    {
+        $this->cursor = $this->graphemes->count;
+        $this->follow();
+    }
+
+    /// Typing inserts; Left, Right, Home, End, Backspace and Delete move and
+    /// erase. A character typed with Control or Alt is not text and is ignored.
+    writable function handleKey(Key $key, KeyModifiers $modifiers): KeyResult
+    {
+        ?string $typed = match ($key) {
+            Key::Character($text) => $text,
+            Key::Enter => null,
+            Key::Escape => null,
+            Key::Backspace => null,
+            Key::Tab => null,
+            Key::Up => null,
+            Key::Down => null,
+            Key::Left => null,
+            Key::Right => null,
+            Key::Home => null,
+            Key::End => null,
+            Key::PageUp => null,
+            Key::PageDown => null,
+            Key::Insert => null,
+            Key::Delete => null,
+            Key::Function($number) => null,
+        };
+        if ($typed != null) {
+            if ($modifiers->control or $modifiers->alt) {
+                return KeyResult::Ignored;
+            }
+            $this->insert($typed);
+        } else if ($key == Key::Backspace) {
+            $this->backspace();
+        } else if ($key == Key::Delete) {
+            $this->delete();
+        } else if ($key == Key::Left) {
+            $this->moveLeft();
+        } else if ($key == Key::Right) {
+            $this->moveRight();
+        } else if ($key == Key::Home) {
+            $this->moveHome();
+        } else if ($key == Key::End) {
+            $this->moveEnd();
+        } else {
+            return KeyResult::Ignored;
+        }
+        return KeyResult::Handled;
+    }
+
+    /// Keeps the cursor's cell in view: the clusters from the offset up to the
+    /// cursor, and the cursor cell itself, fit in the last drawn width.
+    internal writable function follow(): void
+    {
+        int $columns = $this->viewport->acquireReadonlyAccess()->getColumns();
+        if ($this->cursor < $this->offset) {
+            $this->offset = $this->cursor;
+        }
+        if ($columns <= 0) {
+            return;
+        }
+        while ($this->offset < $this->cursor and $this->cellsBeforeCursor() + 1 > $columns) {
+            $this->offset++;
+        }
+    }
+
+    internal function cellsBeforeCursor(): int
+    {
+        writable int $cells = 0;
+        for (writable int $index = $this->offset; $index < $this->cursor; $index++) {
+            $cells += $this->graphemes[$index]->displayWidth;
+        }
+        return $cells;
+    }
+}

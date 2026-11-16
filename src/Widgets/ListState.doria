@@ -1,0 +1,124 @@
+namespace Doria\Tui\Widgets;
+
+use Doria\Std\Term\{Key, KeyModifiers};
+use Doria\Tui\Input\{KeyHandler, KeyResult};
+
+/// The selection and scroll position of a list of `count` items. The window
+/// stays where it is until the selection reaches its top or bottom edge, using
+/// the height its `ListView` was last drawn at.
+class ListState implements KeyHandler
+{
+    internal writable int $count = 0;
+    internal writable int $selected = 0;
+    internal writable int $offset = 0;
+    internal WritableSharedReference<Viewport> $viewport;
+
+    function __construct(parameter int $count)
+    {
+        if ($count < 0) {
+            panic("A list cannot have a negative number of items");
+        }
+        $this->count = $count;
+        $this->viewport = new WritableSharedReference(new Viewport());
+    }
+
+    /// The selected item's index, or `null` when the list is empty.
+    function getSelected(): ?int
+    {
+        if ($this->count == 0) {
+            return null;
+        }
+        return $this->selected;
+    }
+
+    /// The index of the first item in view.
+    function getOffset(): int
+    {
+        return $this->offset;
+    }
+
+    /// Another handle on this state's viewport, for the element that draws it.
+    function shareViewport(): WritableSharedReference<Viewport>
+    {
+        return $this->viewport->share();
+    }
+
+    /// Changes the number of items, keeping the selection inside the list.
+    writable function setCount(int $count): void
+    {
+        if ($count < 0) {
+            panic("A list cannot have a negative number of items");
+        }
+        $this->count = $count;
+        int $current = $this->selected;
+        $this->select($current);
+    }
+
+    /// Selects `$index`, held inside the list, and scrolls it into view.
+    writable function select(int $index): void
+    {
+        writable int $target = $index;
+        if ($target >= $this->count) {
+            $target = $this->count - 1;
+        }
+        if ($target < 0) {
+            $target = 0;
+        }
+        $this->selected = $target;
+        $this->follow();
+    }
+
+    /// Up and Down move one item, Page Up and Page Down one window, Home and
+    /// End to either end.
+    writable function handleKey(Key $key, KeyModifiers $modifiers): KeyResult
+    {
+        int $page = $this->pageRows();
+        ?int $target = match ($key) {
+            Key::Up => $this->selected - 1,
+            Key::Down => $this->selected + 1,
+            Key::PageUp => $this->selected - $page,
+            Key::PageDown => $this->selected + $page,
+            Key::Home => 0,
+            Key::End => $this->count - 1,
+            Key::Character($text) => null,
+            Key::Enter => null,
+            Key::Escape => null,
+            Key::Backspace => null,
+            Key::Tab => null,
+            Key::Left => null,
+            Key::Right => null,
+            Key::Insert => null,
+            Key::Delete => null,
+            Key::Function($number) => null,
+        };
+        if ($target == null) {
+            return KeyResult::Ignored;
+        }
+        $this->select($target);
+        return KeyResult::Handled;
+    }
+
+    internal function pageRows(): int
+    {
+        int $rows = $this->viewport->acquireReadonlyAccess()->getRows();
+        return when ($rows > 1): int {
+            return $rows;
+        } else {
+            return 1;
+        };
+    }
+
+    internal writable function follow(): void
+    {
+        int $rows = $this->viewport->acquireReadonlyAccess()->getRows();
+        if ($this->selected < $this->offset) {
+            $this->offset = $this->selected;
+        }
+        if ($rows > 0 and $this->selected >= $this->offset + $rows) {
+            $this->offset = $this->selected - $rows + 1;
+        }
+        if ($this->offset < 0) {
+            $this->offset = 0;
+        }
+    }
+}

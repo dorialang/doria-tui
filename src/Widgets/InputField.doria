@@ -1,0 +1,80 @@
+namespace Doria\Tui\Widgets;
+
+use Doria\Std\Term\Style;
+use Doria\Tui\Layout\{Element, Extent, Region};
+use Doria\Tui\Surface\Frame;
+
+/// Draws an input field's text on one row from its state's offset, with the
+/// cluster under the cursor in `$cursorStyle` when the field has focus. It
+/// records the width it was drawn at in the state's viewport.
+class InputField implements Element
+{
+    function __construct(
+        string $text,
+        int $cursor,
+        int $offset,
+        take WritableSharedReference<Viewport> $viewport,
+        bool $focused,
+        Style $textStyle,
+        Style $cursorStyle,
+    ) {
+    }
+
+    static function of(InputState $state, bool $focused): InputField
+    {
+        return new InputField(
+            $state->getText(),
+            $state->getCursor(),
+            $state->getOffset(),
+            $state->shareViewport(),
+            $focused,
+            Style::plain,
+            Style::plain->withReverse(),
+        );
+    }
+
+    function measure(int $width, int $height): Extent
+    {
+        int $rows = when ($height > 0): int {
+            return 1;
+        } else {
+            return 0;
+        };
+        return new Extent($width, $rows);
+    }
+
+    function draw(Region $region, writable Frame $frame): void
+    {
+        if ($region->height == 0) {
+            return;
+        }
+        $this->viewport->acquireWritableAccess()->record($region->width, 1);
+        int $end = $region->column + $region->width;
+        writable int $column = $region->column;
+        writable int $index = 0;
+        writable bool $cursorDrawn = false;
+        foreach ($this->text->graphemes as string $grapheme) {
+            if ($index >= $this->offset) {
+                bool $atCursor = $this->focused and $index == $this->cursor;
+                Style $style = when ($atCursor): Style {
+                    return $this->cursorStyle;
+                } else {
+                    return $this->textStyle;
+                };
+                int $written = $frame->write($column, $region->row, $grapheme, $style, end: $end);
+                if ($written == 0 or $column >= $end) {
+                    break;
+                }
+                $column += $written;
+                if ($atCursor) {
+                    $cursorDrawn = true;
+                }
+            }
+            $index++;
+        }
+        $frame->write($column, $region->row, String::repeat(" ", $end - $column), $this->textStyle, end: $end);
+        if ($this->focused and !$cursorDrawn and $this->cursor >= $this->offset) {
+            $frame->write($column, $region->row, " ", $this->cursorStyle, end: $end);
+        }
+    }
+}
