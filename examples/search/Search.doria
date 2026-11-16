@@ -1,0 +1,107 @@
+namespace Doria\Tui\Examples\Search;
+
+use Doria\Std\Term\{Key, KeyModifiers, Style, TerminalEvent};
+use Doria\Tui\Application\{Application, Program, Step};
+use Doria\Tui\Input\{FocusRing, KeyResult};
+use Doria\Tui\Layout\{Child, Element, Sizing, Stack, Text};
+use Doria\Tui\Widgets\{InputField, InputState, ListState, ListView, StatusBar};
+
+/// The searchable list with a detail panel that the Doria plan names as the
+/// TUI library's acceptance program. Type to filter, Tab to move focus,
+/// arrows to move through the results, Escape to quit.
+class Search implements Application
+{
+    internal writable InputState $query;
+    internal writable ListState $results;
+    internal writable FocusRing<Pane> $focus;
+    internal writable List<int> $matches = [];
+
+    function __construct(take List<Entry> $entries)
+    {
+        $this->query = new InputState();
+        $this->matches = self::matching($this->entries, "");
+        $this->results = new ListState($this->matches->count);
+        $this->focus = new FocusRing<Pane>([Pane::Search, Pane::Results]);
+    }
+
+    writable function update(TerminalEvent $event): Step
+    {
+        return match ($event) {
+            TerminalEvent::Key($key, $modifiers) => $this->key($key, $modifiers),
+            TerminalEvent::Resized($size) => Step::Continue,
+        };
+    }
+
+    internal writable function key(Key $key, KeyModifiers $modifiers): Step
+    {
+        if ($key == Key::Escape or ($modifiers->control and $key == Key::Character("c"))) {
+            return Step::Quit;
+        }
+        if ($this->focus->handleKey($key, $modifiers) == KeyResult::Handled) {
+            return Step::Continue;
+        }
+        if ($this->focus->has(Pane::Search)) {
+            string $before = $this->query->getText();
+            if ($key == Key::Down) {
+                $this->focus->focus(Pane::Results);
+            } else {
+                $this->query->handleKey($key, $modifiers);
+            }
+            if ($this->query->getText() != $before) {
+                $this->filter();
+            }
+        } else {
+            $this->results->handleKey($key, $modifiers);
+        }
+        return Step::Continue;
+    }
+
+    internal writable function filter(): void
+    {
+        $this->matches = self::matching($this->entries, $this->query->getText());
+        $this->results->setCount($this->matches->count);
+        $this->results->select(0);
+    }
+
+    /// The indices of the entries whose name or summary contains `$text`,
+    /// ignoring case.
+    internal static function matching(List<Entry> $entries, string $text): List<int>
+    {
+        writable List<int> $found = [];
+        writable int $index = 0;
+        foreach ($entries as Entry $entry) {
+            if (String::containsIgnoreCase($entry->name, $text)
+                or String::containsIgnoreCase($entry->summary, $text)) {
+                $found->add($index);
+            }
+            $index++;
+        }
+        return $found;
+    }
+
+    function view(): Element
+    {
+        writable List<string> $names = [];
+        foreach ($this->matches as int $index) {
+            $names->add($this->entries[$index]->name);
+        }
+        ?int $selected = $this->results->getSelected();
+        string $detail = when ($selected != null): string {
+            return $this->entries[$this->matches[$selected]]->summary;
+        } else {
+            return "No entry matches.";
+        };
+        string $count = "{$this->matches->count} of {$this->entries->count}";
+        return Stack::column([
+            new Child(Stack::row([
+                new Child(Text::plain("Search "), Sizing::measured()),
+                new Child(InputField::of($this->query, $this->focus->has(Pane::Search)), Sizing::fill()),
+            ]), Sizing::exact(1)),
+            new Child(Stack::row([
+                new Child(ListView::of($names, $this->results), Sizing::fill(1)->between(12, 28)),
+                new Child(new Text($detail, Style::plain), Sizing::fill(2)),
+            ], spacing: 2), Sizing::fill()),
+            new Child(StatusBar::of($count, "Tab focus  Esc quit"), Sizing::exact(1)),
+        ], spacing: 1);
+    }
+}

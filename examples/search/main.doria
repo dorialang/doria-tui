@@ -1,0 +1,19 @@
+namespace Doria\Tui\Examples\Search;
+
+use Doria\Tui\Application\Program;
+
+function main(): void
+{
+    writable Search $search = new Search([
+        new Entry("Doria\\Std\\Term", "Raw mode, key and resize events, the alternate screen,\ncursor, colors and styles."),
+        new Entry("Doria\\Std\\Io", "Byte and text streams, files, standard streams,\nreadiness and transfer plans."),
+        new Entry("Doria\\Std\\Time", "Durations, deadlines and the monotonic clock."),
+        new Entry("Doria\\Std\\Concurrency", "Cancellation sources and tokens."),
+        new Entry("Doria\\Std\\Test", "describe, it, expect and the matchers."),
+        new Entry("Doria\\Tui\\Surface", "Frames of cells and the runs that changed."),
+        new Entry("Doria\\Tui\\Layout", "Elements, stacks, sizing rules, text\nand plain-text rendering."),
+        new Entry("Doria\\Tui\\Widgets", "Lists, input fields and status bars."),
+        new Entry("日本語 テキスト", "Wide characters take two cells each."),
+    ]);
+    Program::run($search);
+}

@@ -1,0 +1,9 @@
+namespace Doria\Tui\Examples\Search;
+
+/// One searchable entry: a name and the text the detail panel shows.
+class Entry
+{
+    function __construct(string $name, string $summary)
+    {
+    }
+}

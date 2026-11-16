@@ -1,0 +1,8 @@
+namespace Doria\Tui\Examples\Search;
+
+/// The panes that take focus.
+enum Pane
+{
+    case Search;
+    case Results;
+}

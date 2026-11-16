@@ -9,8 +9,13 @@ publishable = false
 [targets.library]
 name = "tui"
 
+[[targets.binary]]
+name = "search"
+entry = "examples/search/main.doria"
+
 [autoload.namespaces]
 "Doria\\Tui\\" = "src/"
+"Doria\\Tui\\Examples\\Search\\" = "examples/search/"
 
 [autoload-dev.namespaces]
 "Doria\\Tui\\Tests\\" = "tests/"
