@@ -4,7 +4,7 @@ use Doria\Std\Term\Style;
 use Doria\Std\Test\{describe, it, expect};
 use Doria\Tui\Layout\{Element, Region};
 use Doria\Tui\Surface\Frame;
-use Doria\Tui\Widgets\{InputField, InputState, ListState, ListView};
+use Doria\Tui\Widgets\{InputField, InputState, ListState, ListView, StatusBar};
 
 function rows(Element $root, int $width, int $height): string
 {
@@ -113,5 +113,24 @@ describe("InputState and InputField", function (): void {
         $state->moveHome();
         expect($state->getOffset())->toEqual(0);
         expect(rows(InputField::of($state, true), 4, 1))->toEqual("abcd|");
+    });
+});
+
+describe("StatusBar", function (): void {
+    it("fills its row and puts the right text against the edge", function (): void {
+        writable Frame $wide = new Frame(14, 1);
+        StatusBar::of("3 of 9", "q quit")->draw(new Region(0, 0, 14, 1), $wide);
+        expect($wide->line(0))->toEqual("3 of 9  q quit");
+        expect($wide->styleAt(7, 0) == Style::plain->withReverse())->toBeTrue();
+    });
+
+    it("drops the right text first when both do not fit", function (): void {
+        // The two texts need one blank cell between them.
+        writable Frame $touching = new Frame(12, 1);
+        StatusBar::of("3 of 9", "q quit")->draw(new Region(0, 0, 12, 1), $touching);
+        expect($touching->line(0))->toEqual("3 of 9      ");
+        writable Frame $frame = new Frame(8, 1);
+        StatusBar::of("searching", "q quit")->draw(new Region(0, 0, 8, 1), $frame);
+        expect($frame->line(0))->toEqual("searchin");
     });
 });

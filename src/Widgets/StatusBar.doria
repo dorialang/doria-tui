@@ -1,0 +1,44 @@
+namespace Doria\Tui\Widgets;
+
+use Doria\Std\Term\Style;
+use Doria\Tui\Layout\{Element, Extent, Region};
+use Doria\Tui\Surface\Frame;
+
+/// One row across its whole region in one style: `$left` from the left edge
+/// and `$right` against the right edge. When both do not fit, `$right` is
+/// dropped first and `$left` is clipped.
+class StatusBar implements Element
+{
+    function __construct(string $left, string $right, Style $style)
+    {
+    }
+
+    static function of(string $left, string $right): StatusBar
+    {
+        return new StatusBar($left, $right, Style::plain->withReverse());
+    }
+
+    function measure(int $width, int $height): Extent
+    {
+        int $rows = when ($height > 0): int {
+            return 1;
+        } else {
+            return 0;
+        };
+        return new Extent($width, $rows);
+    }
+
+    function draw(Region $region, writable Frame $frame): void
+    {
+        if ($region->height == 0 or $region->width == 0) {
+            return;
+        }
+        int $end = $region->column + $region->width;
+        $frame->write($region->column, $region->row, String::repeat(" ", $region->width), $this->style, end: $end);
+        int $used = $frame->write($region->column, $region->row, $this->left, $this->style, end: $end);
+        int $rightWidth = $this->right->displayWidth;
+        if ($used + 1 + $rightWidth <= $region->width) {
+            $frame->write($end - $rightWidth, $region->row, $this->right, $this->style, end: $end);
+        }
+    }
+}
