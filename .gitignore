@@ -15,3 +15,6 @@ Desktop.ini
 *.log
 *.tmp
 *~
+
+# The pinned Baton checkout CI makes
+/.baton/

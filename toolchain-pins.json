@@ -1,0 +1,10 @@
+{
+  "doria": {
+    "repository": "dorialang/doria",
+    "commit": "151953505917ecd45b689038450c67f5300ae31f"
+  },
+  "baton": {
+    "repository": "dorialang/baton-php",
+    "commit": "682ddd31c92551f30a1b4ef037f15accc3976095"
+  }
+}

@@ -1,0 +1,93 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  library:
+    name: library-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the library
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Read the toolchain pins
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "doria=$(jq -r .doria.commit toolchain-pins.json)" >> "$GITHUB_OUTPUT"
+          echo "baton=$(jq -r .baton.commit toolchain-pins.json)" >> "$GITHUB_OUTPUT"
+
+      # The compiler comes from dorialang/doria's CI, which uploads it as the
+      # `doriac-<os>-<arch>` artifact of the run for each commit.
+      - name: Download the pinned compiler
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.DORIA_ARTIFACT_TOKEN || github.token }}
+          DORIA_COMMIT: ${{ steps.pins.outputs.doria }}
+        run: |
+          set -euo pipefail
+          run=$(gh api "repos/dorialang/doria/actions/runs?head_sha=${DORIA_COMMIT}&event=push&per_page=20" \
+            --jq '[.workflow_runs[] | select(.name == "ci")][0].id')
+          if [ -z "$run" ] || [ "$run" = "null" ]; then
+            echo "dorialang/doria has no CI run for ${DORIA_COMMIT}; pin a pushed develop commit in toolchain-pins.json"
+            exit 1
+          fi
+          gh run download "$run" -R dorialang/doria -n "doriac-${RUNNER_OS}-${RUNNER_ARCH}" -D "$RUNNER_TEMP/doriac"
+          binary="$RUNNER_TEMP/doriac/doriac"
+          if [ "$RUNNER_OS" = "Windows" ]; then binary="$binary.exe"; fi
+          chmod +x "$binary"
+          "$binary" --version --json
+          echo "BATON_DORIAC=$binary" >> "$GITHUB_ENV"
+
+      - name: Check out the pinned Baton
+        uses: actions/checkout@v7
+        with:
+          repository: dorialang/baton-php
+          ref: ${{ steps.pins.outputs.baton }}
+          path: .baton
+          persist-credentials: false
+
+      - name: Set up PHP for Baton
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install Baton
+        working-directory: .baton
+        run: composer install --prefer-dist --no-dev --no-interaction --no-progress
+
+      - name: Check the library and the acceptance program
+        shell: bash
+        run: |
+          set -euo pipefail
+          php .baton/bin/baton check --library
+          php .baton/bin/baton check --binary search
+
+      - name: Run the library tests
+        run: php .baton/bin/baton test
+
+      - name: Build the acceptance program
+        run: php .baton/bin/baton build --binary search
