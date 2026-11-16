@@ -1,0 +1,64 @@
+namespace Doria\Tui\Tests\Input;
+
+use Doria\Std\Term\{Key, KeyModifiers};
+use Doria\Std\Test\{describe, it, expect};
+use Doria\Tui\Input\{FocusRing, KeyResult};
+use Doria\Tui\Widgets\{InputState, ListState};
+
+describe("FocusRing", function (): void {
+    it("starts on its first member and wraps both ways", function (): void {
+        writable FocusRing<Pane> $focus = new FocusRing<Pane>([Pane::Search, Pane::Results, Pane::Details]);
+        expect($focus->has(Pane::Search))->toBeTrue();
+        $focus->previous();
+        expect($focus->has(Pane::Details))->toBeTrue();
+        $focus->next();
+        $focus->next();
+        expect($focus->has(Pane::Results))->toBeTrue();
+    });
+
+    it("moves on Tab and Shift+Tab and ignores other keys", function (): void {
+        writable FocusRing<Pane> $focus = new FocusRing<Pane>([Pane::Search, Pane::Results]);
+        expect($focus->handleKey(Key::Tab, KeyModifiers::none) == KeyResult::Handled)->toBeTrue();
+        expect($focus->has(Pane::Results))->toBeTrue();
+        expect($focus->handleKey(Key::Tab, new KeyModifiers(false, false, true)) == KeyResult::Handled)->toBeTrue();
+        expect($focus->has(Pane::Search))->toBeTrue();
+        expect($focus->handleKey(Key::Character("a"), KeyModifiers::none) == KeyResult::Ignored)->toBeTrue();
+        expect($focus->has(Pane::Search))->toBeTrue();
+    });
+
+    it("focuses a named member", function (): void {
+        writable FocusRing<Pane> $focus = new FocusRing<Pane>([Pane::Search, Pane::Results, Pane::Details]);
+        $focus->focus(Pane::Details);
+        expect($focus->getCurrent() == Pane::Details)->toBeTrue();
+    });
+});
+
+describe("ListState keys", function (): void {
+    it("moves by item, by end and ignores text", function (): void {
+        writable ListState $state = new ListState(5);
+        expect($state->handleKey(Key::Down, KeyModifiers::none) == KeyResult::Handled)->toBeTrue();
+        expect($state->getSelected() ?? -1)->toEqual(1);
+        $state->handleKey(Key::End, KeyModifiers::none);
+        expect($state->getSelected() ?? -1)->toEqual(4);
+        $state->handleKey(Key::Down, KeyModifiers::none);
+        expect($state->getSelected() ?? -1)->toEqual(4);
+        $state->handleKey(Key::Home, KeyModifiers::none);
+        expect($state->getSelected() ?? -1)->toEqual(0);
+        expect($state->handleKey(Key::Character("x"), KeyModifiers::none) == KeyResult::Ignored)->toBeTrue();
+    });
+});
+
+describe("InputState keys", function (): void {
+    it("types, moves and erases, and leaves Control keys alone", function (): void {
+        writable InputState $state = new InputState();
+        $state->handleKey(Key::Character("a"), KeyModifiers::none);
+        $state->handleKey(Key::Character("日"), KeyModifiers::none);
+        $state->handleKey(Key::Character("c"), KeyModifiers::none);
+        $state->handleKey(Key::Left, KeyModifiers::none);
+        $state->handleKey(Key::Backspace, KeyModifiers::none);
+        expect($state->getText())->toEqual("ac");
+        expect($state->handleKey(Key::Character("c"), new KeyModifiers(true, false, false)) == KeyResult::Ignored)->toBeTrue();
+        expect($state->getText())->toEqual("ac");
+        expect($state->handleKey(Key::Enter, KeyModifiers::none) == KeyResult::Ignored)->toBeTrue();
+    });
+});

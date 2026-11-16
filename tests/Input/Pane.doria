@@ -1,0 +1,9 @@
+namespace Doria\Tui\Tests\Input;
+
+/// A test application's focusable panes.
+enum Pane
+{
+    case Search;
+    case Results;
+    case Details;
+}
