@@ -1,4 +1,13 @@
+<div align="center">
+  <img src="/res/images/doria-app-icon-warm.svg" alt="Doria Logo" width="200" height="200">
+
 # Doria TUI
+
+**A statically checked, natively compiled language for building software you can read and binaries you can trust.**
+
+</div>
+
+---
 
 `Doria\Tui` is a terminal user interface library for the Doria Programming
 Language. An application keeps its state in one value, changes it in response
